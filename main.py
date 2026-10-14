@@ -3,6 +3,8 @@ import os
 import asyncio
 import pyfiglet
 import logging
+import ipaddress
+import random
 
 logging.basicConfig(level=logging.DEBUG)
 HOST_KEY_FILE = "ssh_host_key"
@@ -50,6 +52,71 @@ def draw_figlet_text(process, row, text, fg=37, bg=""):
     for i, line in enumerate(lines):
         draw_text(process, row + i, x, line, fg, bg)
 
+# ──────────────────
+def draw_line(process, row, fg=37, bg=""):
+    width, height, pixel_width, pixel_height = process.get_terminal_size()
+    text = "─" * width
+    bgcolour = ""
+    if bg != "":
+        bgcolour = ";" + str(bg)
+    process.stdout.write(
+            f"\x1b[{row};1H\x1b[{fg}{bgcolour}m{text}\x1b[0m"
+        )
+
+def draw_box(process, row, col, width, height, fg=37, bg="", text=""):
+    bgcolour = ""
+    if bg != "":
+        bgcolour = ";" + str(bg)
+
+    # draw top left corner
+    process.stdout.write(f"\x1b[{row};{col}H\x1b[{fg}{bgcolour}m┌\x1b[0m")
+
+    for i in range(0, width):
+        process.stdout.write(f"\x1b[{row};{(col + 1) + i}H\x1b[{fg}{bgcolour}m─\x1b[0m")
+
+    # draw top right corner
+    process.stdout.write(f"\x1b[{row};{col + width + 1}H\x1b[{fg}{bgcolour}m┐\x1b[0m")
+
+    for i in range(0, height):
+        process.stdout.write(f"\x1b[{(row + 1) + i};{col + width + 1}H\x1b[{fg}{bgcolour}m│\x1b[0m")
+
+    # draw bottom right corner
+    process.stdout.write(f"\x1b[{row + height + 1};{col + width + 1}H\x1b[{fg}{bgcolour}m┘\x1b[0m")
+
+    for i in range(0, width):
+        process.stdout.write(f"\x1b[{row + height + 1};{(col + 1) + i}H\x1b[{fg}{bgcolour}m─\x1b[0m")
+
+    # draw bottom left corner
+    process.stdout.write(f"\x1b[{row + height + 1};{col}H\x1b[{fg}{bgcolour}m└\x1b[0m")
+
+    for i in range(0, height):
+        process.stdout.write(f"\x1b[{(row + 1) + i};{col}H\x1b[{fg}{bgcolour}m│\x1b[0m")
+
+    if text != "":
+        process.stdout.write(f"\x1b[{row};{col + 2}H\x1b[{fg}{bgcolour}m{text}\x1b[0m")
+
+# ──────────────────
+async def draw_scrolling_line(process, row, fg=37, bg=""):
+    width, height, pixel_width, pixel_height = process.get_terminal_size()
+    text = "─"
+    bgcolour = ""
+    if bg != "":
+        bgcolour = ";" + str(bg)
+
+    col = 0
+
+    while col < width - 1:
+        col = col + 1
+        process.stdout.write(f"\x1b[{row};{col}H\x1b[{fg}{bgcolour}m \x1b[0m")
+        process.stdout.write(f"\x1b[{row};{col+1}H\x1b[{fg}{bgcolour}m─\x1b[0m")
+        await asyncio.sleep(0.02)
+
+        if col >= width -1:
+            col = 0
+            process.stdout.write(f"\x1b[{row};{width}H\x1b[{fg}{bgcolour}m \x1b[0m")
+
+    
+
 def clear_screen(process):
     process.stdout.write("\x1b[2J\x1b[H")
 
@@ -84,23 +151,59 @@ async def get_special_key(key, process):
     print(key)
     return(key)
 
+
+
+
+
+
+
+# gap to make this one easier to find
+
 async def handle_client(process):
+
+    question_types = ["network", "broadcast"]
+    # , "hosts", "mask"
+
+    question_type = random.choice(question_types)
+
+    ip = ".".join(str(random.randint(0, 255)) for _ in range(4))
+    prefix = random.randint(24, 30)
+
+    network = ipaddress.ip_network(f"{ip}/{prefix}", strict=False)
+
+    if question_type == "network":
+        answer = str(network.network_address)
+
+    elif question_type == "broadcast":
+        answer = str(network.broadcast_address)
+
+    print(f"Question Type: {question_type}")
+    print(f"IP: {ip}/{prefix}")
+    print(f"Answer: {answer}")
 
     toggle_cursor(False, process)
 
     state = "MENU"
-
+ 
     clear_screen(process)
 
     draw_figlet_text(process, 5, "Subnet", 32, "")
     draw_figlet_text(process, 10, "Showdown", 32, "")
 
+    draw_text(process, 17, 10, "A Secure SHell Networking Quiz Game.", 37, "", True)
+
     options = [" Solo Mode ", "Multiplayer", "How to Play"]
     selected_option = 0
+
+    draw_line(process, 20, 32, "")
 
     draw_text(process, 25, 10, "Solo Mode", 30, 107, True)
     draw_text(process, 26, 10, "Multiplayer", 37, "", True)
     draw_text(process, 27, 10, "How To Play", 37, "", True)
+
+    draw_box(process, 23, 73, 15, 5, fg=37, bg="", text="Main Menu")
+
+    animation_task = asyncio.create_task(draw_scrolling_line(process, 19))
 
     while True:
         try:
@@ -108,6 +211,7 @@ async def handle_client(process):
         except asyncssh.TerminalSizeChanged:
             continue
         if not key or key == "q":
+            clear_screen(process)
             break
 
         key = await get_special_key(key, process)
@@ -132,6 +236,14 @@ async def handle_client(process):
                     draw_text(process, 26, 10, "Multiplayer", 37, "", True)
                     draw_text(process, 27, 10, "How To Play", 30, 107, True)        
 
+    animation_task.cancel()
+
+    try:
+        await animation_task
+    except asyncio.CancelledError:
+        pass
+
+    toggle_cursor(True, process)
     process.exit(0)
 
 async def main():
