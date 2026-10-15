@@ -1,10 +1,10 @@
-# Subnet Showdown
-
-A subnetting quiz game you play over SSH. Connect from any terminal to test how fast you can work out network addresses, broadcast addresses and usable host counts.
-
 ```
 ssh -p 2222 subnetshowdown.tomttfb.com
 ```
+
+# Subnet Showdown
+
+A subnetting quiz game you play over SSH. Connect from any terminal to test how fast you can work out network addresses, broadcast addresses and usable host counts.
 
 Made for Hack Club Crescent's SSH Card
 
