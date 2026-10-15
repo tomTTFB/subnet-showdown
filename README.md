@@ -1,5 +1,5 @@
 ```
-ssh -p 2222 subnetshowdown.tomttfb.com
+ssh -p 2222 player@subnetshowdown.tomttfb.com
 ```
 
 # Subnet Showdown
